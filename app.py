@@ -3,13 +3,14 @@ import os
 import pandas as pd
 import openai
 
-st.set_page_config(page_title="Shiksha AI")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY"))
 
-# API key লোড (Streamlit secrets বা environment variable)
-openai.api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
-
-st.title("Shiksha AI — Debug")
-st.write("OpenAI key loaded:", bool(openai.api_key))
+# তারপর client দিয়ে কল করো (নামের API ভ্যারিয়েশন ভ্যারায়)
+resp = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role":"user","content":"Hello"}],
+)
+st.write(resp.choices[0].message.content)
 # get key
 api_key = None
 if "OPENAI_API_KEY" in st.secrets:
@@ -212,6 +213,7 @@ elif mode == "About":
 # Footer
 st.markdown("---")
 st.caption("Developed for Shiksha AI — provide a sample syllabus CSV & requirements.txt if you want further help.")
+
 
 
 
