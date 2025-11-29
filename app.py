@@ -6,6 +6,7 @@ import openai
 st.set_page_config(page_title="Shiksha AI")
 st.title("Shiksha AI — Debug")
 
+# Load API key
 openai.api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 st.write("OpenAI key loaded:", bool(openai.api_key))
 
@@ -28,6 +29,7 @@ if st.button("Ask Shiksha AI"):
         output = ask_openai(user_input)
     st.subheader("Response:")
     st.write(output)
+    
 prompt = st.text_area("Prompt", value="Hello, introduce yourself in Bengali.")
 if st.button("Send to OpenAI"):
     with st.spinner("Waiting for reply..."):
@@ -205,6 +207,7 @@ elif mode == "About":
 # Footer
 st.markdown("---")
 st.caption("Developed for Shiksha AI — provide a sample syllabus CSV & requirements.txt if you want further help.")
+
 
 
 
