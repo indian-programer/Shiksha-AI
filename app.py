@@ -13,7 +13,7 @@ def ask_openai(prompt: str):
     """Send prompt to OpenAI and return the response string."""
     if not openai.api_key:
         return "Error: API Key missing."
-        
+
     resp = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}],
@@ -21,15 +21,13 @@ def ask_openai(prompt: str):
     )
     return resp.choices[0].message["content"].strip()
 
-user_input = st.text_area("Write your prompt below:")
-
+# Streamlit UI
+user_input = st.text_area("Write your prompt below:", value="Hello, introduce yourself in Bengali.")
 if st.button("Ask Shiksha AI"):
     with st.spinner("Generating response..."):
         output = ask_openai(user_input)
-
     st.subheader("Response:")
     st.write(output)
-
 prompt = st.text_area("Prompt", value="Hello, introduce yourself in Bengali.")
 if st.button("Send to OpenAI"):
     with st.spinner("Waiting for reply..."):
@@ -207,6 +205,7 @@ elif mode == "About":
 # Footer
 st.markdown("---")
 st.caption("Developed for Shiksha AI — provide a sample syllabus CSV & requirements.txt if you want further help.")
+
 
 
 
