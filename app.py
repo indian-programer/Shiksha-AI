@@ -4,11 +4,6 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 from openai import OpenAI
-openai.api_key = st.secrets["OPENAI_API_KEY"]
-# streamlit_app.py
-import streamlit as st
-import os
-from openai import OpenAI
 
 st.set_page_config(page_title="Shiksha AI Chatbot", layout="centered")
 st.title("Shiksha AI Chatbot")
@@ -219,5 +214,6 @@ elif mode == "About":
 # Footer
 st.markdown("---")
 st.caption("Developed for Shiksha AI — provide a sample syllabus CSV & requirements.txt if you want further help.")
+
 
 
