@@ -1,14 +1,12 @@
-# app.py
-import os
-from typing import Optional
-import pandas as pd
 import streamlit as st
+import os
+import pasdas as pd
 from openai import OpenAI
 
 st.set_page_config(page_title="Shiksha AI Chatbot", layout="centered")
-st.title("Shiksha AI Chatbot")
+st.title("Shiksha AI Chatbot — Debug Build")
 
-# --- Load API key from Streamlit Secrets or temporary input ---
+# get key
 api_key = None
 if "OPENAI_API_KEY" in st.secrets:
     api_key = st.secrets["OPENAI_API_KEY"]
@@ -18,62 +16,57 @@ else:
     api_key = st.text_input("Enter OpenAI API key (temporary)", type="password")
 
 if not api_key:
-    st.warning("Please add your OpenAI API key in Streamlit Secrets or enter it here.")
+    st.warning("Please set OPENAI_API_KEY in Streamlit Secrets or enter it here.")
     st.stop()
 
-# Create OpenAI client (v1.x)
-client = OpenAI(api_key=api_key)
+# create client
+try:
+    client = OpenAI(api_key=api_key)
+    st.success("OpenAI client created (OK)")
+except Exception as e:
+    st.error(f"Failed to create OpenAI client: {e}")
+    st.stop()
 
-# Conversation state
+# small connection test button
+if st.button("Run connection test"):
+    try:
+        r = client.models.list()
+        st.write("Models count:", len(r.data) if hasattr(r, "data") else "unknown")
+        st.write("Sample model:", r.data[0].id if hasattr(r, "data") and len(r.data)>0 else str(r)[:200])
+    except Exception as e:
+        st.error(f"Connection test failed: {e}")
+
+# conversation state
 if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "system", "content": "You are a helpful assistant that replies in clear Bengali when possible."}
-    ]
+    st.session_state.messages = [{"role":"system","content":"You are a helpful assistant. Prefer Bengali answers."}]
 
 st.subheader("Conversation")
 for m in st.session_state.messages:
-    role = m.get("role")
-    content = m.get("content")
-    if role == "user":
-        st.markdown(f"**You:** {content}")
-    elif role == "assistant":
-        st.markdown(f"**Bot:** {content}")
+    if m["role"]=="user":
+        st.markdown(f"**You:** {m['content']}")
+    elif m["role"]=="assistant":
+        st.markdown(f"**Bot:** {m['content']}")
 
 st.markdown("---")
 user_input = st.text_input("Type your message and press Enter", key="input")
 
 if user_input:
-    # add user message
-    st.session_state.messages.append({"role": "user", "content": user_input})
-
+    st.session_state.messages.append({"role":"user","content":user_input})
     with st.spinner("Thinking..."):
         try:
-            # call new OpenAI client (chat completions)
             resp = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=st.session_state.messages,
-                max_tokens=512,
+                max_tokens=400,
                 temperature=0.3,
             )
-            # response parsing for v1.x
-            # choices list -> each choice has .message.content
+            # parse response (v1.x)
             choice = resp.choices[0]
             assistant_text = choice.message.content.strip()
-            st.session_state.messages.append({"role": "assistant", "content": assistant_text})
+            st.session_state.messages.append({"role":"assistant","content":assistant_text})
             st.experimental_rerun()
         except Exception as e:
             st.error(f"API call failed: {e}")
-# -------------------------
-# Create OpenAI client (new SDK)
-# -------------------------
-client: Optional[OpenAI] = None
-if API_KEY:
-    try:
-        client = OpenAI(api_key=API_KEY)
-    except Exception as e:
-        st.error(f"OpenAI ক্লায়েন্ট ইনিশিয়ালাইজ করা যায়নি: {e}")
-        client = None
-
 # -------------------------
 # Helper: call OpenAI chat
 # -------------------------
@@ -214,6 +207,7 @@ elif mode == "About":
 # Footer
 st.markdown("---")
 st.caption("Developed for Shiksha AI — provide a sample syllabus CSV & requirements.txt if you want further help.")
+
 
 
 
