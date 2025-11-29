@@ -1,0 +1,4 @@
+question,answer
+What is quadratic formula?,The quadratic formula for ax^2 + bx + c = 0 is x = (-b ± sqrt(b^2 - 4ac)) / (2a).
+What is photosynthesis?,Photosynthesis is the process by which green plants make food using sunlight, CO2 and water, producing oxygen.
+Define atom,An atom is the smallest unit of ordinary matter that forms a chemical element.
