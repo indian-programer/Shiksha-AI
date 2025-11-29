@@ -1,10 +1,15 @@
 import streamlit as st
 import os
 import pandas as pd
-import OpenAI
+import openai
 
-st.set_page_config(page_title="Shiksha AI Chatbot", layout="centered")
-st.title("Shiksha AI Chatbot — Debug Build")
+st.set_page_config(page_title="Shiksha AI")
+st.title("Shiksha AI — Debug")
+
+# load api key from env / streamlit secrets
+openai.api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", None)
+
+st.write("OpenAI key loaded:", bool(openai.api_key))
 
 # get key
 api_key = None
@@ -207,6 +212,7 @@ elif mode == "About":
 # Footer
 st.markdown("---")
 st.caption("Developed for Shiksha AI — provide a sample syllabus CSV & requirements.txt if you want further help.")
+
 
 
 
