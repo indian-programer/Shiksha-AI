@@ -4,6 +4,7 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 from openai import OpenAI
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # Page config
 st.set_page_config(page_title="Shiksha AI", layout="wide")
@@ -216,3 +217,4 @@ elif mode == "About":
 # Footer
 st.markdown("---")
 st.caption("Developed for Shiksha AI — provide a sample syllabus CSV & requirements.txt if you want further help.")
+
