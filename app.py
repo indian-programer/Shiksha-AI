@@ -3,26 +3,35 @@ import os
 import pandas as pd
 import openai
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY"))
+st.set_page_config(page_title="Shiksha AI")
+st.title("Shiksha AI — Debug")
 
-# তারপর client দিয়ে কল করো (নামের API ভ্যারিয়েশন ভ্যারায়)
-resp = client.chat.completions.create(
-    model="gpt-4o-mini",
-    messages=[{"role":"user","content":"Hello"}],
-)
-st.write(resp.choices[0].message.content)
-# get key
-api_key = None
-if "OPENAI_API_KEY" in st.secrets:
-    api_key = st.secrets["OPENAI_API_KEY"]
-elif os.getenv("OPENAI_API_KEY"):
-    api_key = os.getenv("OPENAI_API_KEY")
-else:
-    api_key = st.text_input("Enter OpenAI API key (temporary)", type="password")
+# API key load (Streamlit secrets বা environment variable)
+openai.api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+st.write("OpenAI key loaded:", bool(openai.api_key))
 
-if not api_key:
-    st.warning("Please set OPENAI_API_KEY in Streamlit Secrets or enter it here.")
-    st.stop()
+# --- OpenAI call function: নিশ্চিতভাবে return ফাংশনের ভিতরে আছে ---
+def ask_openai(prompt: str, model: str = "gpt-3.5-turbo"):
+    """Send prompt to OpenAI and return the assistant reply as string."""
+    # যদি কোনো কনফিগারেশন বা ভুল হয়, এটাও handle করতে পারো
+    if not openai.api_key:
+        return "Error: OpenAI API key not set."
+
+    resp = openai.ChatCompletion.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=300,
+    )
+    # এটি অবশ্যই ফাংশনের ভিতরেই থাকতে হবে
+    return resp.choices[0].message["content"].strip()
+
+# --- Streamlit UI ---
+prompt = st.text_area("Prompt", value="Hello, introduce yourself in Bengali.")
+if st.button("Send to OpenAI"):
+    with st.spinner("Waiting for reply..."):
+        reply = ask_openai(prompt)
+    st.markdown("**Reply:**")
+    st.write(reply)
 
 # create client
 try:
@@ -213,6 +222,7 @@ elif mode == "About":
 # Footer
 st.markdown("---")
 st.caption("Developed for Shiksha AI — provide a sample syllabus CSV & requirements.txt if you want further help.")
+
 
 
 
