@@ -1,206 +1,196 @@
-
-
+# app.py
 import os
-import pandas as pd
 import streamlit as st
-from openai import OpenAI
+import pandas as pd
+from typing import Optional, List
 
-# Load API Key from Streamlit Secrets
-OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-
-# Create OpenAI client
-client = OpenAI(api_key=OPENAI_API_KEY)
-
-st.set_page_config(page_title="Shiksha AI Chatbot", layout="wide")
-st.title("Shiksha AI – Chat Assistant")
-
-def call_openai_chat(prompt, temp=0.3, max_tokens=300):
+# Try to create an OpenAI client that works with different openai versions:
+def make_openai_client(api_key: str):
+    """
+    Tries different import styles so this code works with multiple openai package variants.
+    Returns a tuple (client_obj, style) where style is "new" or "legacy".
+    """
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temp,
-            max_tokens=max_tokens,
-        )
-        return response.choices[0].message["content"]
+        # New official SDK style (openai >= 1.0 with OpenAI class)
+        from openai import OpenAI  # type: ignore
+        client = OpenAI(api_key=api_key)
+        return client, "new"
+    except Exception:
+        pass
 
-    except Exception as e:
-        return f"API Error: {e}"
-
-# User Input Section
-user_msg = st.text_input("আপনার প্রশ্ন লিখুন:")
-
-if st.button("Send"):
-    if user_msg.strip() == "":
-        st.warning("দয়া করে একটি প্রশ্ন লিখুন।")
-    else:
-        output = call_openai_chat(user_msg)
-        st.success("উত্তর:")
-        st.write(output)
-# -------------------------------
-# Helper: OpenAI Chat Function
-# -------------------------------
-def call_openai_chat(prompt: str, temp: float = 0.2, max_t: int = 700) -> str:
     try:
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temp,
-            max_tokens=max_t
-        )
-        return resp.choices[0].message["content"].strip()
+        # Legacy style (openai package that exposes methods on module)
+        import openai  # type: ignore
+        openai.api_key = api_key
+        return openai, "legacy"
+    except Exception:
+        pass
 
+    return None, None
+
+# Read API key: prefer st.secrets, else environment var
+def read_api_key() -> Optional[str]:
+    key = None
+    try:
+        # common names: OPENAI_API_KEY or API_KEY
+        if "OPENAI_API_KEY" in st.secrets:
+            key = st.secrets["OPENAI_API_KEY"]
+        elif "API_KEY" in st.secrets:
+            key = st.secrets["API_KEY"]
+    except Exception:
+        # st.secrets might not exist locally
+        pass
+
+    if not key:
+        # environment fallback
+        key = os.environ.get("OPENAI_API_KEY") or os.environ.get("API_KEY")
+    return key
+
+API_KEY = read_api_key()
+if not API_KEY:
+    st.warning("🔑 OpenAI API key পাওয়া যায়নি। লোকালি ~/.streamlit/secrets.toml এ `OPENAI_API_KEY = \"sk-...\"` যোগ করুন অথবা Streamlit Cloud secrets এ সেট করুন.")
+    # still continue but API calls will fail with nice message
+
+client_obj, client_style = (None, None)
+if API_KEY:
+    client_obj, client_style = make_openai_client(API_KEY)
+
+# Helper that works with both styles
+def call_openai_chat(prompt: str, model: str = "gpt-3.5-turbo", temperature: float = 0.2, max_tokens: int = 600) -> str:
+    if not API_KEY or not client_obj:
+        return "OpenAI API key নেই — st.secrets['OPENAI_API_KEY'] বা environment variable সেট করুন."
+
+    try:
+        if client_style == "new":
+            # new SDK: client.chat.completions.create(...)
+            resp = client_obj.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            # new SDK shape: resp.choices[0].message["content"]
+            text = ""
+            try:
+                text = resp.choices[0].message["content"]
+            except Exception:
+                # sometimes different attr names
+                text = str(resp)
+            return text.strip()
+        elif client_style == "legacy":
+            # legacy openai package (openai.ChatCompletion.create)
+            resp = client_obj.ChatCompletion.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            # legacy shape: resp.choices[0].message['content'] or resp.choices[0].text
+            try:
+                return resp.choices[0].message["content"].strip()
+            except Exception:
+                try:
+                    return resp.choices[0].text.strip()
+                except Exception:
+                    return str(resp)
+        else:
+            return "OpenAI ক্লায়েন্ট ইনিশিয়ালাইজ হয়নি (unsupported)."
     except Exception as e:
-        return f"❌ API Error: {e}"
+        return f"OpenAI call failed: {e}"
 
-
-# -------------------------------
-# Streamlit UI Setup
-# -------------------------------
+# Streamlit app UI
 st.set_page_config(page_title="Shiksha AI", layout="wide")
-st.title("🎓 **Shiksha AI – Learning Assistant**")
+st.title("🔮 Shiksha AI — Learning Assistant")
 
-
-# -------------------------------
-# Sidebar Options
-# -------------------------------
+# Sidebar
 st.sidebar.header("Options")
-mode = st.sidebar.selectbox(
-    "Choose Mode",
-    ["Chat", "Upload Syllabus (CSV)", "Quiz Generator", "About"]
-)
+mode = st.sidebar.selectbox("Mode", ["Chat", "Upload Syllabus (CSV)", "Quiz Generator", "About"])
 
-temperature = st.sidebar.slider("Creativity (temperature)", 0.0, 1.0, 0.2)
-max_tokens = st.sidebar.slider("Max Tokens (Response Length)", 100, 2000, 700, step=50)
+temperature = st.sidebar.slider("Creativity (temperature)", 0.0, 1.0, 0.2, step=0.1)
+max_tokens = st.sidebar.slider("Max tokens (response length)", 100, 1500, 700, step=50)
 
-# -------------------------------
-# MODE 1: CHAT
-# -------------------------------
 if mode == "Chat":
     st.subheader("💬 Chat Mode")
-    user_input = st.text_input("Write your question:")
-
-    if st.button("Send", key="chat-send"):
-        if user_input.strip() == "":
-            st.warning("⚠️ প্রশ্ন লিখুন!")
+    st.write("Ask questions in Bengali or English. The assistant will reply using OpenAI.")
+    user_input = st.text_input("প্রশ্ন লিখুন:", key="chat_input")
+    if st.button("Send", key="chat_send"):
+        if not user_input or user_input.strip() == "":
+            st.warning("প্রশ্ন লিখুন!")
         else:
-            with st.spinner("AI উত্তর দিচ্ছে..."):
-                ans = call_openai_chat(user_input, temp=temperature, max_t=max_tokens)
-            st.markdown("### ✨ উত্তর")
-            st.write(ans)
+            with st.spinner("AI উত্তর তৈরি করছে..."):
+                prompt = user_input.strip()
+                ans = call_openai_chat(prompt, temperature=temperature, max_tokens=max_tokens)
+                st.markdown("### উত্তর")
+                st.write(ans)
 
-# -------------------------------
-# MODE 2: Upload Syllabus
-# -------------------------------
 elif mode == "Upload Syllabus (CSV)":
-    st.subheader("📂 Upload Syllabus (CSV)")
-    uploaded = st.file_uploader("Upload syllabus CSV", type=["csv"])
-
+    st.subheader("📄 Upload syllabus (CSV) — Searchable")
+    uploaded = st.file_uploader("Upload syllabus CSV", type=["csv"], key="uploader")
     if uploaded is not None:
         try:
             df = pd.read_csv(uploaded)
         except Exception as e:
-            st.error(f"❌ CSV পড়তে সমস্যা: {e}")
+            st.error(f"CSV পড়তে সমস্যা: {e}")
             df = pd.DataFrame()
-
         if not df.empty:
-            st.write("📘 Uploaded Syllabus:")
-            st.write(df)
-
-            keyword = st.text_input("Search keyword:")
-            if st.button("Search"):
-                if keyword.strip() == "":
-                    st.warning("⚠️ কীওয়ার্ড লিখুন!")
-                else:
-                    mask = df.apply(lambda row: row.astype(str).str.contains(keyword, case=False).any(), axis=1)
-                    results = df[mask]
-                    st.session_state["results"] = results
-                    st.write(results)
-
-            if "results" in st.session_state:
-                results_saved = st.session_state["results"]
-
-                if not results_saved.empty:
-                    if st.button("Explain selected results with AI"):
-                        combined = "\n\n".join(
-                            results_saved.astype(str).apply(
-                                lambda r: " | ".join(r.values.astype(str)),
-                                axis=1
-                            ).tolist()
-                        )
-
-                        prompt = (
-                            "ছাত্রদের জন্য সহজ বাংলায় নিচের সিলেবাস পয়েন্টগুলোর ব্যাখ্যা করো:\n\n"
-                            f"{combined}"
-                        )
-
-                        with st.spinner("ব্যাখ্যা তৈরি হচ্ছে..."):
-                            ans = call_openai_chat(prompt, temp=temperature, max_t=max_tokens)
-
-                        st.markdown("### 📘 ব্যাখ্যা")
+            st.write("Preview:", df.head(20))
+            keyword = st.text_input("Search keyword:", key="search_keyword")
+            if keyword and keyword.strip() != "":
+                mask = df.apply(lambda row: row.astype(str).str.contains(keyword, case=False).any(), axis=1)
+            else:
+                mask = pd.Series([False] * len(df))
+            if st.button("Search in syllabus", key="search_syllabus"):
+                results = df[mask]
+                st.write(results)
+                st.session_state["results"] = results
+            else:
+                st.info("অনুসন্ধান চালাতে 'Search in syllabus' চাপুন")
+            results_saved = st.session_state.get("results", None)
+            if results_saved is not None and not results_saved.empty:
+                if st.button("Explain selected results (with AI)", key="explain_selected"):
+                    combined = "\n\n".join(results_saved.astype(str).apply(lambda r: " | ".join(r.values.astype(str)), axis=1).tolist())
+                    prompt = f"ছাত্রদের জন্য সহজ বাংলায় নিচের বিষয়টি ব্যাখ্যা করো:\n\n{combined}"
+                    with st.spinner("ব্যাখ্যা তৈরি হচ্ছে..."):
+                        ans = call_openai_chat(prompt, temperature=temperature, max_tokens=max_tokens)
+                        st.markdown("### ব্যাখ্যা")
                         st.write(ans)
-                else:
-                    st.info("🔍 কোনো ফলাফল পাওয়া যায়নি।")
+        else:
+            st.info("ফাইল পড়া যায়নি বা ফাইল খালি — সঠিক CSV আপলোড করুন।")
 
-# -------------------------------
-# MODE 3: Quiz Generator
-# -------------------------------
 elif mode == "Quiz Generator":
-    st.header("📝 Quick MCQ Generator")
-
-    topic = st.text_input("বিষয় লিখুন (e.g., 'Quadratic Equations'):")
-    num_q = st.slider("Number of MCQs", 1, 20, 5)
-    prefer_bengali = st.checkbox("MCQ উত্তর বাংলা চাই", True)
-
-    if st.button("Generate Quiz"):
-        if topic.strip() == "":
-            st.warning("⚠️ বিষয় লিখুন!")
+    st.subheader("📝 Quick MCQ Generator")
+    topic = st.text_input("বিষয়/টপিক (e.g., Quadratic Equations)", key="quiz_topic")
+    num_q = st.slider("Number of MCQs", 1, 20, 5, key="num_q")
+    prefer_bengali = st.checkbox("উত্তর বাংলায় চাই", value=True, key="prefer_bengali")
+    if st.button("Generate Quiz", key="generate_quiz"):
+        if not topic or topic.strip() == "":
+            st.warning("অনুগ্রহ করে একটি টপিক লিখুন।")
         else:
             lang_note = "বাংলা" if prefer_bengali else "English"
             prompt = (
-                f"Generate {num_q} MCQ questions on '{topic}'. "
-                f"Provide options A-D. Give correct answer. Language: {lang_note}. "
-                "Explain the correct answer briefly."
+                f"Generate {num_q} multiple choice questions for students on the topic '{topic}'. "
+                f"Provide each question, 4 options labelled A-D, and indicate the correct option letter. "
+                f"Keep language simple ({lang_note}). Also include a one-line explanation for each correct answer."
             )
-
-            with st.spinner("Quiz তৈরি হচ্ছে..."):
-                quiz_text = call_openai_chat(prompt, temp=temperature, max_t=max_tokens)
-
-            st.markdown("### 📗 Generated Quiz")
-            st.write(quiz_text)
-
-            st.session_state.latest_quiz = quiz_text
-
+            with st.spinner("Quiz তৈরী হচ্ছে..."):
+                quiz_text = call_openai_chat(prompt, temperature=temperature, max_tokens=max_tokens)
+                st.markdown("### Generated Quiz")
+                st.write(quiz_text)
+                st.session_state["latest_quiz"] = quiz_text
     if "latest_quiz" in st.session_state:
-        st.download_button(
-            "Download Quiz as TXT",
-            st.session_state.latest_quiz,
-            file_name="quiz.txt"
-        )
+        st.download_button("Download Quiz as TXT", st.session_state["latest_quiz"], file_name="quiz.txt")
 
-# -------------------------------
-# MODE 4: About
-# -------------------------------
 elif mode == "About":
-    st.header("ℹ️ Shiksha AI — Project Info")
-    st.markdown("""
-    **Shiksha AI** একটি অল-ইন-ওয়ান শিক্ষামূলক অ্যাপ।
-    
-    **Features:**
-    - Chat → AI তোমার প্রশ্নের উত্তর দেয়  
-    - Upload Syllabus → CSV থেকে তথ্য সার্চ ও ব্যাখ্যা  
-    - Quiz Generator → যেকোনো বিষয়ে MCQ বানায়  
-    """)
+    st.header("About — Shiksha AI")
+    st.markdown(
+        """
+- A lightweight Streamlit learning assistant for students.
+- Modes: Chat (with OpenAI), Upload & Search syllabus (CSV), Quiz generator.
+- Make sure `~/.streamlit/secrets.toml` or Streamlit Cloud secrets contains:
 
-    st.markdown("### Quick Tips")
-    st.markdown("""
-    - `.env` ফাইলে `OPENAI_API_KEY=sk-xxxx` রাখুন  
-    - PowerShell এ চালান: `python -m streamlit run app.py`
-    - Deploy করতে GitHub + Streamlit Cloud ব্যবহার করুন  
-    """)
+"""
+    )
 
-# -------------------------------
 # Footer
-# -------------------------------
 st.markdown("---")
-st.caption("Developed for **Shiksha AI**")
+st.caption("Developed for Shiksha AI — If you want, provide a sample syllabus CSV & requirements.txt and I'll help fine-tune the app.")
