@@ -5,67 +5,69 @@ import pandas as pd
 import streamlit as st
 from openai import OpenAI
 openai.api_key = st.secrets["OPENAI_API_KEY"]
+# streamlit_app.py
+import streamlit as st
+import os
+from openai import OpenAI
 
-# Page config
-st.set_page_config(page_title="Shiksha AI", layout="wide")
+st.set_page_config(page_title="Shiksha AI Chatbot", layout="centered")
+st.title("Shiksha AI Chatbot")
 
-# Title
-st.title("🔮 Shiksha AI — Learning Assistant")
+# --- Load API key from Streamlit Secrets or temporary input ---
+api_key = None
+if "OPENAI_API_KEY" in st.secrets:
+    api_key = st.secrets["OPENAI_API_KEY"]
+elif os.getenv("OPENAI_API_KEY"):
+    api_key = os.getenv("OPENAI_API_KEY")
+else:
+    api_key = st.text_input("Enter OpenAI API key (temporary)", type="password")
 
-# -------------------------
-# Helper: call OpenAI chat (requests-based, robust)
-# -------------------------
-import requests
-import json
+if not api_key:
+    st.warning("Please add your OpenAI API key in Streamlit Secrets or enter it here.")
+    st.stop()
 
-def call_openai_chat(
-    prompt: str,
-    model: str = "gpt-3.5-turbo",
-    temperature: float = 0.2,
-    max_tokens: int = 700,
-) -> str:
-    """Call OpenAI HTTP API (chat/completions) via requests.
-    Returns assistant text or error message.
-    """
-    if not API_KEY:
-        return "OpenAI API key সেট নেই — st.secrets বা environment এ সেট করুন."
+# Create OpenAI client (v1.x)
+client = OpenAI(api_key=api_key)
 
-    url = "https://api.openai.com/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": float(temperature),
-        "max_tokens": int(max_tokens),
-    }
+# Conversation state
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "system", "content": "You are a helpful assistant that replies in clear Bengali when possible."}
+    ]
 
-    try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=30)
-    except requests.exceptions.RequestException as e:
-        return f"Network error when calling OpenAI: {e}"
+st.subheader("Conversation")
+for m in st.session_state.messages:
+    role = m.get("role")
+    content = m.get("content")
+    if role == "user":
+        st.markdown(f"**You:** {content}")
+    elif role == "assistant":
+        st.markdown(f"**Bot:** {content}")
 
-    if resp.status_code != 200:
-        # try to extract more info from JSON
+st.markdown("---")
+user_input = st.text_input("Type your message and press Enter", key="input")
+
+if user_input:
+    # add user message
+    st.session_state.messages.append({"role": "user", "content": user_input})
+
+    with st.spinner("Thinking..."):
         try:
-            err = resp.json()
-            return f"OpenAI API error {resp.status_code}: {err}"
-        except Exception:
-            return f"OpenAI API error {resp.status_code}: {resp.text}"
-
-    try:
-        data = resp.json()
-        # safe extraction
-        assistant = data["choices"][0]["message"]["content"]
-        return assistant.strip()
-    except Exception as e:
-        return f"Failed to parse OpenAI response: {e}\nRaw: {resp.text}"
-
+            # call new OpenAI client (chat completions)
+            resp = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=st.session_state.messages,
+                max_tokens=512,
+                temperature=0.3,
+            )
+            # response parsing for v1.x
+            # choices list -> each choice has .message.content
+            choice = resp.choices[0]
+            assistant_text = choice.message.content.strip()
+            st.session_state.messages.append({"role": "assistant", "content": assistant_text})
+            st.experimental_rerun()
+        except Exception as e:
+            st.error(f"API call failed: {e}")
 # -------------------------
 # Create OpenAI client (new SDK)
 # -------------------------
@@ -217,4 +219,5 @@ elif mode == "About":
 # Footer
 st.markdown("---")
 st.caption("Developed for Shiksha AI — provide a sample syllabus CSV & requirements.txt if you want further help.")
+
 
