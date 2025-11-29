@@ -12,33 +12,58 @@ st.set_page_config(page_title="Shiksha AI", layout="wide")
 st.title("🔮 Shiksha AI — Learning Assistant")
 
 # -------------------------
-# Helper: read API key
+# Helper: call OpenAI chat (requests-based, robust)
 # -------------------------
-def read_api_key() -> Optional[str]:
-    """Try st.secrets first, then environment variables."""
-    key = None
+import requests
+import json
+
+def call_openai_chat(
+    prompt: str,
+    model: str = "gpt-3.5-turbo",
+    temperature: float = 0.2,
+    max_tokens: int = 700,
+) -> str:
+    """Call OpenAI HTTP API (chat/completions) via requests.
+    Returns assistant text or error message.
+    """
+    if not API_KEY:
+        return "OpenAI API key সেট নেই — st.secrets বা environment এ সেট করুন."
+
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": float(temperature),
+        "max_tokens": int(max_tokens),
+    }
+
     try:
-        # Try common keys in st.secrets (works on Streamlit Cloud / local secrets)
-        if "OPENAI_API_KEY" in st.secrets:
-            key = st.secrets["OPENAI_API_KEY"]
-        elif "API_KEY" in st.secrets:
-            key = st.secrets["API_KEY"]
-    except Exception:
-        # st.secrets might not exist locally
-        pass
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+    except requests.exceptions.RequestException as e:
+        return f"Network error when calling OpenAI: {e}"
 
-    if not key:
-        # Fallback to environment variables
-        key = os.environ.get("OPENAI_API_KEY") or os.environ.get("API_KEY")
+    if resp.status_code != 200:
+        # try to extract more info from JSON
+        try:
+            err = resp.json()
+            return f"OpenAI API error {resp.status_code}: {err}"
+        except Exception:
+            return f"OpenAI API error {resp.status_code}: {resp.text}"
 
-    return key
-
-API_KEY = read_api_key()
-if not API_KEY:
-    st.warning(
-        "🔑 OpenAI API key পাওয়া যায়নি।\n"
-        "Streamlit Cloud-এ Secrets এ `OPENAI_API_KEY` বা `API_KEY` যোগ করুন বা লোকালি ~/.streamlit/secrets.toml এ সেট করুন."
-    )
+    try:
+        data = resp.json()
+        # safe extraction
+        assistant = data["choices"][0]["message"]["content"]
+        return assistant.strip()
+    except Exception as e:
+        return f"Failed to parse OpenAI response: {e}\nRaw: {resp.text}"
 
 # -------------------------
 # Create OpenAI client (new SDK)
