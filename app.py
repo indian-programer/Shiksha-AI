@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-import pasdas as pd
+import pandas as pd
 from openai import OpenAI
 
 st.set_page_config(page_title="Shiksha AI Chatbot", layout="centered")
@@ -207,6 +207,7 @@ elif mode == "About":
 # Footer
 st.markdown("---")
 st.caption("Developed for Shiksha AI — provide a sample syllabus CSV & requirements.txt if you want further help.")
+
 
 
 
