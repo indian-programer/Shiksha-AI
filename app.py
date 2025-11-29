@@ -6,26 +6,30 @@ import openai
 st.set_page_config(page_title="Shiksha AI")
 st.title("Shiksha AI — Debug")
 
-# API key load (Streamlit secrets বা environment variable)
 openai.api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 st.write("OpenAI key loaded:", bool(openai.api_key))
 
-# --- OpenAI call function: নিশ্চিতভাবে return ফাংশনের ভিতরে আছে ---
-def ask_openai(prompt: str, model: str = "gpt-3.5-turbo"):
-    """Send prompt to OpenAI and return the assistant reply as string."""
-    # যদি কোনো কনফিগারেশন বা ভুল হয়, এটাও handle করতে পারো
+def ask_openai(prompt: str):
+    """Send prompt to OpenAI and return the response string."""
     if not openai.api_key:
-        return "Error: OpenAI API key not set."
-
+        return "Error: API Key missing."
+        
     resp = openai.ChatCompletion.create(
-        model=model,
+        model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=300,
+        max_tokens=250,
     )
-    # এটি অবশ্যই ফাংশনের ভিতরেই থাকতে হবে
     return resp.choices[0].message["content"].strip()
 
-# --- Streamlit UI ---
+user_input = st.text_area("Write your prompt below:")
+
+if st.button("Ask Shiksha AI"):
+    with st.spinner("Generating response..."):
+        output = ask_openai(user_input)
+
+    st.subheader("Response:")
+    st.write(output)
+
 prompt = st.text_area("Prompt", value="Hello, introduce yourself in Bengali.")
 if st.button("Send to OpenAI"):
     with st.spinner("Waiting for reply..."):
@@ -33,7 +37,6 @@ if st.button("Send to OpenAI"):
     st.markdown("**Reply:**")
     st.write(reply)
 
-# create client
 try:
     client = OpenAI(api_key=api_key)
     st.success("OpenAI client created (OK)")
@@ -41,7 +44,6 @@ except Exception as e:
     st.error(f"Failed to create OpenAI client: {e}")
     st.stop()
 
-# small connection test button
 if st.button("Run connection test"):
     try:
         r = client.models.list()
@@ -50,7 +52,6 @@ if st.button("Run connection test"):
     except Exception as e:
         st.error(f"Connection test failed: {e}")
 
-# conversation state
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role":"system","content":"You are a helpful assistant. Prefer Bengali answers."}]
 
@@ -74,16 +75,13 @@ if user_input:
                 max_tokens=400,
                 temperature=0.3,
             )
-            # parse response (v1.x)
             choice = resp.choices[0]
             assistant_text = choice.message.content.strip()
             st.session_state.messages.append({"role":"assistant","content":assistant_text})
             st.experimental_rerun()
         except Exception as e:
             st.error(f"API call failed: {e}")
-# -------------------------
-# Helper: call OpenAI chat
-# -------------------------
+
 def ask_openai(prompt):
     resp = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
@@ -102,27 +100,21 @@ if st.button("Test OpenAI"):
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        # Best-effort extraction of assistant text
+       
         try:
             return resp.choices[0].message["content"].strip()
         except Exception:
-            # fallback to str(resp)
+         
             return str(resp)
     except Exception as e:
         return f"OpenAI call failed: {e}"
 
-# -------------------------
-# Sidebar / controls
-# -------------------------
 st.sidebar.header("Options")
 mode = st.sidebar.selectbox("Mode", ["Chat", "Upload Syllabus (CSV)", "Quiz Generator", "About"])
 
 temperature = st.sidebar.slider("Creativity (temperature)", 0.0, 1.0, 0.2, step=0.1)
 max_tokens = st.sidebar.slider("Max tokens (response length)", 100, 1500, 700, step=50)
 
-# -------------------------
-# Mode: Chat
-# -------------------------
 if mode == "Chat":
     st.subheader("💬 Chat Mode")
     st.write("Ask questions in Bengali or English. The assistant will reply using OpenAI.")
@@ -137,9 +129,7 @@ if mode == "Chat":
                 st.markdown("### উত্তর")
                 st.write(ans)
 
-# -------------------------
-# Mode: Upload syllabus (CSV)
-# -------------------------
+
 elif mode == "Upload Syllabus (CSV)":
     st.subheader("📄 Upload syllabus (CSV) — Searchable")
     uploaded = st.file_uploader("Upload syllabus CSV", type=["csv"], key="uploader")
@@ -176,9 +166,7 @@ elif mode == "Upload Syllabus (CSV)":
         else:
             st.info("ফাইল পড়া যায়নি বা ফাইল খালি — সঠিক CSV আপলোড করুন।")
 
-# -------------------------
-# Mode: Quiz Generator
-# -------------------------
+
 elif mode == "Quiz Generator":
     st.subheader("📝 Quick MCQ Generator")
     topic = st.text_input("বিষয়/টপিক (e.g., Quadratic Equations)", key="quiz_topic")
@@ -202,9 +190,6 @@ elif mode == "Quiz Generator":
     if "latest_quiz" in st.session_state:
         st.download_button("Download Quiz as TXT", st.session_state["latest_quiz"], file_name="quiz.txt")
 
-# -------------------------
-# Mode: About
-# -------------------------
 elif mode == "About":
     st.header("About — Shiksha AI")
     st.markdown(
@@ -222,6 +207,7 @@ elif mode == "About":
 # Footer
 st.markdown("---")
 st.caption("Developed for Shiksha AI — provide a sample syllabus CSV & requirements.txt if you want further help.")
+
 
 
 
