@@ -4,13 +4,12 @@ import pandas as pd
 import openai
 
 st.set_page_config(page_title="Shiksha AI")
+
+# API key লোড (Streamlit secrets বা environment variable)
+openai.api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
+
 st.title("Shiksha AI — Debug")
-
-# load api key from env / streamlit secrets
-openai.api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", None)
-
 st.write("OpenAI key loaded:", bool(openai.api_key))
-
 # get key
 api_key = None
 if "OPENAI_API_KEY" in st.secrets:
@@ -75,16 +74,17 @@ if user_input:
 # -------------------------
 # Helper: call OpenAI chat
 # -------------------------
-def call_openai_chat(
-    prompt: str,
-    model: str = "gpt-4o-mini",
-    temperature: float = 0.2,
-    max_tokens: int = 700,
-) -> str:
-    """Call OpenAI (new SDK). Return assistant text or error message string."""
-    if not client:
-        return "OpenAI API key সেট নেই — st.secrets বা environment এ সেট করুন."
+def ask_openai(prompt):
+    resp = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=200,
+    )
+    return resp.choices[0].message.content
 
+if st.button("Test OpenAI"):
+    st.write(ask_openai("Hello from Streamlit"))
+    
     try:
         resp = client.chat.completions.create(
             model=model,
@@ -212,6 +212,7 @@ elif mode == "About":
 # Footer
 st.markdown("---")
 st.caption("Developed for Shiksha AI — provide a sample syllabus CSV & requirements.txt if you want further help.")
+
 
 
 
